@@ -34,8 +34,11 @@ export default function TaskDetail({ task, onChanged, onDeleted, onEdit, onClose
     onDeleted(task.id);
   });
 
+  // Esc/backdrop durante reagendar ou excluir volta ao detalhe em vez de fechar tudo.
+  const handleClose = () => (mode === 'view' ? onClose() : setMode('view'));
+
   return (
-    <Modal title={task.title} onClose={onClose}>
+    <Modal title={task.title} onClose={handleClose}>
       <div className="detail">
         <p className="meta">
           <span className={`status ${task.status}`}>{completed ? 'Concluída' : 'Pendente'}</span>

@@ -14,15 +14,19 @@ export function validateDueDate(value) {
 }
 
 /** Valida e normaliza o corpo de criação/edição de tarefa. */
-export function validateTaskInput(body = {}) {
+export function validateTaskInput(input) {
+  const body = input && typeof input === 'object' ? input : {};
   const errors = {};
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const description = typeof body.description === 'string' ? body.description.trim() : '';
 
-  if (!title) errors.title = 'O título é obrigatório.';
+  // Byte NUL não é aceito pelo Postgres (invalid byte sequence for encoding "UTF8").
+  if (title.includes('\u0000')) errors.title = 'O título contém caracteres inválidos.';
+  else if (!title) errors.title = 'O título é obrigatório.';
   else if (title.length > TITLE_MAX) errors.title = `O título deve ter no máximo ${TITLE_MAX} caracteres.`;
 
-  if (description.length > DESCRIPTION_MAX)
+  if (description.includes('\u0000')) errors.description = 'A descrição contém caracteres inválidos.';
+  else if (description.length > DESCRIPTION_MAX)
     errors.description = `A descrição deve ter no máximo ${DESCRIPTION_MAX} caracteres.`;
 
   const dateError = validateDueDate(body.due_date);

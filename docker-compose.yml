@@ -4,11 +4,12 @@ services:
     container_name: todo-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: todo
-      POSTGRES_PASSWORD: todo
-      POSTGRES_DB: todo
+      POSTGRES_USER: ${POSTGRES_USER:-todo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-todo}
+      POSTGRES_DB: ${POSTGRES_DB:-todo}
     ports:
-      - "5432:5432"
+      # Apenas loopback: o Postgres não fica exposto na rede.
+      - "127.0.0.1:5432:5432"
     volumes:
       - todo-data:/var/lib/postgresql/data
 

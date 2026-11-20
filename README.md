@@ -23,17 +23,19 @@ Aplicação web simples de lista de tarefas (to-do list). Front-end em React, ba
 
 ## Tecnologias
 
-- React 18 + Vite
+- React 18 + Vite 6
 - Node.js 20+ com Express 4
 - PostgreSQL 16 (driver `pg`)
 - CSS puro
+- `helmet` e `express-rate-limit` no back-end
 
 ## Como rodar
 
 Pré-requisitos: Node.js 20+ e Docker (ou uma instância PostgreSQL própria).
 
 ```bash
-# 1. Banco de dados
+# 1. Banco de dados (credenciais vêm do .env da raiz; padrão de dev: todo/todo)
+cp .env.example .env        # opcional: troque POSTGRES_PASSWORD
 docker compose up -d
 
 # 2. Back-end (http://localhost:3001)
@@ -50,6 +52,8 @@ npm run dev
 
 A tabela é criada automaticamente na inicialização do back-end (`backend/src/schema.sql`, idempotente). Em desenvolvimento, o Vite encaminha `/api` para `http://localhost:3001`.
 
+O Postgres do compose escuta apenas em `127.0.0.1`; as credenciais vêm de `POSTGRES_USER`, `POSTGRES_PASSWORD` e `POSTGRES_DB` (arquivo `.env` na raiz, veja `.env.example`). Em ambiente compartilhado, troque a senha e mantenha o vínculo em loopback.
+
 ### Variáveis de ambiente
 
 Back-end (`backend/.env`):
@@ -58,9 +62,17 @@ Back-end (`backend/.env`):
 |---|---|---|
 | `PORT` | `3001` | Porta da API |
 | `DATABASE_URL` | `postgres://todo:todo@localhost:5432/todo` | Conexão PostgreSQL |
-| `CORS_ORIGIN` | `http://localhost:5173` | Origem permitida |
+| `CORS_ORIGIN` | `http://localhost:5173` | Origens permitidas, separadas por vírgula (`*` libera todas — não recomendado) |
+| `API_TOKEN` | vazio | Se definido, exige `Authorization: Bearer <token>` em `/api/*` (exceto `/api/health`) |
+| `RATE_LIMIT_MAX` | `300` | Requisições por IP a cada 15 minutos |
+| `TRUST_PROXY` | vazio | Nº de proxies confiáveis para ler `X-Forwarded-For` (ex.: `1` atrás de Nginx) |
 
-Front-end: `VITE_API_URL` (opcional, padrão `/api`) para apontar a outra URL de API em produção.
+Front-end:
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `VITE_API_URL` | `/api` | URL base da API |
+| `VITE_API_TOKEN` | vazio | Token enviado como `Bearer` (só quando a API usa `API_TOKEN`; lembre que ele fica embutido no bundle) |
 
 ### Build de produção do front-end
 
@@ -74,26 +86,34 @@ Base: `/api`
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/tasks?view=today\|pending\|completed&date=YYYY-MM-DD&q=texto` | Lista tarefas. `date` é obrigatório na prática para `view=today` (padrão: data UTC do servidor) |
+| GET | `/tasks?view=today\|pending\|completed&date=YYYY-MM-DD&q=texto` | Lista tarefas (máx. 1000). `date` deve ser enviado para `view=today` (padrão: data local do servidor) |
 | GET | `/tasks/:id` | Busca uma tarefa |
 | POST | `/tasks` | Cria (`title`, `description`, `due_date`) |
 | PUT | `/tasks/:id` | Edita (`title`, `description`, `due_date`) |
 | PATCH | `/tasks/:id/status` | Altera status (`{ "status": "completed" }`) |
 | PATCH | `/tasks/:id/reschedule` | Reagenda (`{ "due_date": "YYYY-MM-DD" }`) |
 | DELETE | `/tasks/:id` | Exclui |
-| GET | `/health` | Healthcheck |
+| GET | `/health` | Healthcheck (público, sem rate limit) |
 
-Erros de validação retornam `400` com `{ "error": "...", "details": { "campo": "mensagem" } }`.
+Erros de validação retornam `400` com `{ "error": "...", "details": { "campo": "mensagem" } }`. IDs inexistentes ou fora do range de `integer` retornam `404`. Payload acima de 100kb retorna `413`.
+
+## Segurança
+
+Medidas aplicadas no back-end (e no compose):
+
+- Rate limit por IP: 300 requisições / 15 min em `/api/*`, exceto `/api/health` (configurável por `RATE_LIMIT_MAX`).
+- Queries parametrizadas, `q` com escape de `%`/`_`, rejeição de byte NUL e teto de 1000 linhas na listagem.
 
 ## Estrutura
 
 ```
 .
 ├── docker-compose.yml
+├── .env.example          # credenciais do compose
 ├── AGENTS.md
 ├── backend/
 │   └── src/
-│       ├── server.js        # bootstrap Express
+│       ├── server.js        # bootstrap Express, helmet/CORS/rate limit/token
 │       ├── db.js            # pool pg e init do schema
 │       ├── schema.sql
 │       ├── validation.js

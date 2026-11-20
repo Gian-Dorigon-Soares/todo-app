@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import TaskDetail from './components/TaskDetail.jsx';
 import TaskForm from './components/TaskForm.jsx';
@@ -20,30 +20,69 @@ function useDebounced(value, delay = 300) {
   return debounced;
 }
 
+/** Data local que se atualiza sozinha na virada da meia-noite (e ao voltar para a aba). */
+function useToday() {
+  const [today, setToday] = useState(todayISO);
+
+  useEffect(() => {
+    let timer;
+    const schedule = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+      timer = setTimeout(() => {
+        setToday(todayISO());
+        schedule();
+      }, nextMidnight - now);
+    };
+    const refresh = () => setToday(todayISO());
+    schedule();
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+
+  return today;
+}
+
 export default function App() {
   const [view, setView] = useState('today');
   const [query, setQuery] = useState('');
   const q = useDebounced(query.trim());
+  const today = useToday();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null); // tarefa aberta
   const [form, setForm] = useState(null); // { task? } | null
+  const requestRef = useRef(0);
+  const abortRef = useRef(null);
 
   const load = useCallback(async () => {
+    // Descarta respostas antigas (troca de aba, busca rápida) e cancela o fetch anterior.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const requestId = ++requestRef.current;
+
     setError('');
     try {
-      setTasks(await api.list({ view, date: todayISO(), q }));
+      const data = await api.list({ view, date: today, q, signal: controller.signal });
+      if (requestId !== requestRef.current) return;
+      setTasks(data);
     } catch (err) {
+      if (err.name === 'AbortError' || requestId !== requestRef.current) return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (requestId === requestRef.current) setLoading(false);
     }
-  }, [view, q]);
+  }, [view, q, today]);
 
   useEffect(() => {
     setLoading(true);
     load();
+    return () => abortRef.current?.abort();
   }, [load]);
 
   async function toggle(task) {
@@ -81,7 +120,7 @@ export default function App() {
         <header className="page-head">
           <div>
             <h1>{VIEWS[view].label}</h1>
-            {view === 'today' && <p className="subtitle">{formatLong(todayISO())}</p>}
+            {view === 'today' && <p className="subtitle">{formatLong(today)}</p>}
           </div>
           <button className="btn primary" onClick={() => setForm({})}>Nova tarefa</button>
         </header>

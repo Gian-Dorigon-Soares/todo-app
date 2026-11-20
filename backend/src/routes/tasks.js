@@ -4,6 +4,9 @@ import { isValidDate, validateDueDate, validateTaskInput } from '../validation.j
 
 const router = Router();
 const COLUMNS = 'id, title, description, due_date, status, created_at, updated_at';
+const INT4_MAX = 2147483647;
+// Teto para a listagem: sem ele, GET /api/tasks devolve a tabela inteira.
+const MAX_ROWS = 1000;
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -11,12 +14,22 @@ const badRequest = (res, errors) => res.status(400).json({ error: 'Dados inváli
 const notFound = (res) => res.status(404).json({ error: 'Tarefa não encontrada.' });
 
 function parseId(req, res, next) {
-  if (!/^\d+$/.test(req.params.id)) return notFound(res);
-  req.taskId = Number(req.params.id);
+  // IDs fora do range de int4 fariam o Postgres estourar (500); aqui viram 404.
+  if (!/^\d{1,10}$/.test(req.params.id)) return notFound(res);
+  const id = Number(req.params.id);
+  if (id < 1 || id > INT4_MAX) return notFound(res);
+  req.taskId = id;
   next();
 }
 
 const escapeLike = (s) => s.replace(/[\\%_]/g, '\\$&');
+
+/** Data local do servidor (o fallback anterior usava UTC e virava o dia após as 21h). */
+function localTodayISO() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 /**
  * GET /api/tasks?view=today|pending|completed&date=YYYY-MM-DD&q=texto
@@ -32,7 +45,7 @@ router.get('/', wrap(async (req, res) => {
   let orderBy = 'due_date DESC, id DESC';
 
   if (view === 'today') {
-    const date = req.query.date ?? new Date().toISOString().slice(0, 10);
+    const date = req.query.date ?? localTodayISO();
     if (!isValidDate(date)) return badRequest(res, { date: 'Data inválida.' });
     params.push(date);
     where.push(`due_date = $${params.length}`);
@@ -47,12 +60,16 @@ router.get('/', wrap(async (req, res) => {
     return badRequest(res, { view: 'View inválida.' });
   }
 
+  // Byte NUL é rejeitado pelo Postgres; sanitiza a busca em vez de estourar 500.
+  if (typeof q === 'string' && q.includes('\u0000')) return badRequest(res, { q: 'Pesquisa inválida.' });
+
   if (typeof q === 'string' && q.trim()) {
     params.push(`%${escapeLike(q.trim())}%`);
     where.push(`(title ILIKE $${params.length} OR description ILIKE $${params.length})`);
   }
 
-  const sql = `SELECT ${COLUMNS} FROM tasks ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${orderBy}`;
+  params.push(MAX_ROWS);
+  const sql = `SELECT ${COLUMNS} FROM tasks ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${orderBy} LIMIT $${params.length}`;
   const { rows } = await pool.query(sql, params);
   res.json(rows);
 }));
