@@ -117,22 +117,23 @@ export default function App() {
       </nav>
 
       <main className="main">
-        <header className="page-head">
-          <div>
-            <h1>{VIEWS[view].label}</h1>
-            {view === 'today' && <p className="subtitle">{formatLong(today)}</p>}
-          </div>
-          <button className="btn primary" onClick={() => setForm({})}>Nova tarefa</button>
-        </header>
-
-        <input
-          type="search"
-          className="search"
-          placeholder="Pesquisar por título ou descrição"
-          aria-label="Pesquisar tarefas"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="page-fixed">
+          <header className="page-head">
+            <div>
+              <h1>{VIEWS[view].label}</h1>
+              {view === 'today' && <p className="subtitle">{formatLong(today)}</p>}
+            </div>
+            <button className="btn primary" onClick={() => setForm({})}>Nova tarefa</button>
+          </header>
+          <input
+            type="search"
+            className="search"
+            placeholder="Pesquisar por título ou descrição"
+            aria-label="Pesquisar tarefas"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
 
         {error && <p className="error" role="alert">{error}</p>}
         {loading ? (

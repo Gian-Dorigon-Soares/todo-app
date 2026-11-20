@@ -11,6 +11,8 @@ Aplicação web simples de lista de tarefas (to-do list). Front-end em React, ba
 - Tela de concluídas (ordenadas por data decrescente)
 - Tarefa aberta: concluir (ou reabrir), reagendar, editar e excluir
 - Layout responsivo (barra lateral no desktop, navegação inferior no mobile)
+- Cabeçalho e busca fixos no topo (título, data, botão de nova tarefa e pesquisa); apenas a lista rola
+- Navegação inferior fixa no mobile
 
 ## Campos da tarefa
 

@@ -77,6 +77,8 @@ Regras: `title` obrigatório (trim, máx. 120); `description` máx. 2000 (trim);
 - No front-end, `App.jsx` concentra o estado (view, busca, tarefa aberta, formulário). Após qualquer mutação, a lista é recarregada via `load()`, que cancela a request anterior (`AbortController`) e descarta respostas fora de ordem (`requestRef`). Não remover esse guarda.
 - `useToday()` em `App.jsx` atualiza a data na meia-noite e no `visibilitychange`; use `today` do hook em vez de chamar `todayISO()` no render.
 - Modais usam `<dialog>` nativo (`components/Modal.jsx`). `TaskForm` confirma antes de descartar alterações; `TaskDetail` volta ao detalhe ao fechar durante reagendar/excluir.
+- Layout: `.page-fixed` (cabeçalho + busca) é `position: sticky; top: 0` com fundo opaco; apenas lista e mensagem de erro rolam no documento. No mobile, `.nav` é `position: fixed` no rodapé e `.main` reserva `padding-bottom` para não cobrir o último item. Não trocar por um scroll container interno (`.main` com `overflow`) sem revisar os dois comportamentos.
+- As faixas do `.app` usam `minmax(0, 1fr)` e `.main` tem `min-width: 0`: sem isso, o `min-content` de textos `nowrap` (descrição longa) estica a coluna até 760px e o layout vaza no mobile.
 - Estilos ficam em `frontend/src/styles.css` com variáveis CSS em `:root`. Breakpoint mobile: `720px`.
 
 ## Checklist ao alterar
